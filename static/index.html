@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Revenue Recovery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="grain"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="pulse" id="live-dot"></span>
+      <span class="brand-name">Revenue Recovery</span>
+      <span class="brand-sub">detect &rarr; root cause &rarr; recover</span>
+    </div>
+    <div class="topbar-right">
+      <span class="chip" id="llm-chip">LLM: &hellip;</span>
+      <span class="chip" id="tick-chip">tick 0</span>
+    </div>
+  </header>
+
+  <!-- HERO: the money band -->
+  <section class="hero">
+    <div class="hero-metric leaking">
+      <div class="hero-label">Revenue at risk <span class="hint">rolling window</span></div>
+      <div class="hero-value" id="at-risk">&mdash;</div>
+    </div>
+    <div class="hero-divider"></div>
+    <div class="hero-metric recovered">
+      <div class="hero-label">Recovered <span class="hint">after action</span></div>
+      <div class="hero-value" id="recovered">&mdash;</div>
+      <div class="hero-foot" id="recovered-txns"></div>
+    </div>
+    <div class="hero-gauge">
+      <div class="gauge-label">Overall success</div>
+      <div class="gauge-value" id="overall-sr">&mdash;</div>
+      <div class="gauge-bar"><span id="gauge-fill"></span></div>
+      <div class="gauge-foot" id="overall-vol"></div>
+    </div>
+  </section>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="payments">Live payments</button>
+    <button class="tab" data-tab="recurring">Recurring revenue</button>
+  </nav>
+
+  <!-- ================= PAYMENTS ================= -->
+  <main class="panel-grid" id="tab-payments">
+    <section class="panel span-2">
+      <div class="panel-head">
+        <h2>Route health</h2>
+        <div class="btn-group">
+          <button class="btn btn-danger" id="btn-incident-gateway">Simulate gateway timeout</button>
+          <button class="btn btn-danger" id="btn-incident-bank">Simulate bank declines</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="health-table">
+          <thead>
+            <tr><th>Route</th><th>Success</th><th class="num">Baseline</th><th class="num">Volume</th><th>Top error</th><th class="num">At risk</th></tr>
+          </thead>
+          <tbody id="health-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel diagnosis" id="diagnosis-panel">
+      <div class="panel-head"><h2>Diagnosis</h2><span class="src" id="rca-src"></span></div>
+      <div id="diagnosis-empty" class="empty">All routes healthy. Trigger a degradation to see detection, root cause, and recovery.</div>
+      <div id="diagnosis-body" class="hidden">
+        <div class="anomaly-tag" id="anomaly-tag"></div>
+        <p class="rca-narrative" id="rca-narrative"></p>
+        <div class="confidence"><span>confidence</span><div class="conf-bar"><span id="conf-fill"></span></div><b id="conf-pct"></b></div>
+        <div class="action-card" id="action-card">
+          <div class="action-kind" id="action-kind"></div>
+          <div class="action-title" id="action-title"></div>
+          <div class="action-detail" id="action-detail"></div>
+          <div class="action-projection" id="action-projection"></div>
+          <button class="btn btn-recover" id="btn-apply">Apply recovery</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel span-3">
+      <div class="panel-head"><h2>Activity</h2></div>
+      <ul class="feed" id="feed"></ul>
+    </section>
+  </main>
+
+  <!-- ================= RECURRING ================= -->
+  <main class="panel-grid hidden" id="tab-recurring">
+    <section class="panel span-3">
+      <div class="panel-head">
+        <h2>Failed subscriptions</h2>
+        <button class="btn btn-recover" id="btn-run-subs">Run recovery agent</button>
+      </div>
+      <div class="funnel" id="funnel">
+        <div class="funnel-empty" id="funnel-empty">
+          <span id="subs-count">&mdash;</span> renewals failed this cycle. Run the agent to plan retries and dunning.
+        </div>
+      </div>
+    </section>
+
+    <section class="panel span-3">
+      <div class="panel-head"><h2>Recovery queue</h2><span class="src" id="subs-src"></span></div>
+      <div id="queue" class="queue"></div>
+    </section>
+  </main>
+
+  <footer class="footer">Synthetic data. Actions simulate their own uplift. Built for the Razorpay AI Buildathon &mdash; AI Revenue Recovery.</footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
