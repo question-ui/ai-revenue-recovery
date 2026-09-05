@@ -11,6 +11,12 @@ from ..llm.client import LLMClient
 from ..models import Subscription, SubRecoveryPlan
 
 
+# Stopping rules: after this many failed attempts, auto-recovery stops and the
+# account escalates to a human instead of being contacted again automatically.
+# This bounds both wasted retries and repeated customer contact.
+MAX_AUTO_ATTEMPTS = 3
+MIN_HOURS_BETWEEN_CONTACTS = 24  # documented floor; the batch model checks days_since_fail
+
 # Per-reason playbook: action, retry timing, channel, and a base recovery probability
 # that reflects how salvageable that failure class typically is.
 PLAYBOOK = {
@@ -50,6 +56,13 @@ def _template_message(sub: Subscription) -> str:
     return ""  # RETRY_NOW is silent
 
 
+def _escalation_message(sub: Subscription) -> str:
+    name = sub.customer.split()[0]
+    return (f"Hi {name}, we've tried a few times to renew your {sub.plan} plan without success. "
+            f"To avoid further automated attempts, a member of our team will reach out directly "
+            f"to help sort this out.")
+
+
 def _probability(sub: Subscription) -> float:
     base = PLAYBOOK[sub.failure_reason]["base_prob"]
     # More prior attempts -> lower odds. Recency helps a little.
@@ -62,6 +75,20 @@ def build_plans(subs: list[Subscription], use_llm: bool = True) -> list[SubRecov
     llm = LLMClient() if (use_llm and settings.llm_enabled) else None
     plans: list[SubRecoveryPlan] = []
     for sub in subs:
+        # --- Stopping rule -------------------------------------------------
+        # Past MAX_AUTO_ATTEMPTS, stop auto-retrying and stop auto-contacting the
+        # customer. Hand off to a human instead of retrying or messaging forever.
+        if sub.attempts >= MAX_AUTO_ATTEMPTS:
+            message = _escalation_message(sub)
+            plans.append(SubRecoveryPlan(
+                sub_id=sub.sub_id, customer=sub.customer, plan=sub.plan, mrr=sub.mrr,
+                failure_reason=sub.failure_reason, action="ESCALATE_TO_HUMAN",
+                retry_in_days=None, channel="EMAIL",
+                message=message, recovery_probability=0.15,
+                expected_recovered_mrr=round(sub.mrr * 0.15, 2), message_source="template",
+            ))
+            continue
+
         p = PLAYBOOK[sub.failure_reason]
         prob = _probability(sub)
 
@@ -93,7 +120,7 @@ def funnel(subs: list[Subscription], plans: list[SubRecoveryPlan]) -> dict:
         b["count"] += 1
         b["at_risk"] += s.mrr
         b["expected"] += p.expected_recovered_mrr
-    for b in by_reason.values():
+    for b in b_reason.values() if False else by_reason.values():
         b["at_risk"] = round(b["at_risk"], 2)
         b["expected"] = round(b["expected"], 2)
     return {
