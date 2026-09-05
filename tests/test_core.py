@@ -83,3 +83,16 @@ def test_subscription_recovery_playbook():
     f = funnel(subs, plans)
     assert 0 <= f["recovery_rate"] <= 1
     assert f["expected_recovered_mrr"] <= f["at_risk_mrr"]
+
+
+def test_subscription_stopping_rule_escalates_after_max_attempts():
+    from app.recover.subscription_agent import MAX_AUTO_ATTEMPTS
+    from app.models import Subscription
+    # A subscription already at the attempt cap must stop auto-retry/auto-contact
+    # and hand off to a human instead of being messaged again.
+    sub = Subscription(sub_id="sub_x", customer="Test User", plan="Growth", mrr=1499.0,
+                       method="UPI", issuer="HDFC", failure_reason="INSUFFICIENT_FUNDS",
+                       attempts=MAX_AUTO_ATTEMPTS, days_since_fail=5)
+    plans = build_plans([sub], use_llm=False)
+    assert plans[0].action == "ESCALATE_TO_HUMAN"
+    assert plans[0].channel == "EMAIL"
