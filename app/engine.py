@@ -19,6 +19,10 @@ from .simulator.subscriptions import generate_failed_subscriptions
 
 
 class Engine:
+    # Stopping rule: if an applied action hasn't healed the segment within this many
+    # ticks, stop waiting on it and force an escalation instead of retrying forever.
+    MAX_ACTION_TICKS = 25
+
     def __init__(self):
         self.sim = PaymentSimulator()
         self.monitor = Monitor()
@@ -61,6 +65,7 @@ class Engine:
         else:
             # Has the segment healed (e.g. after a reroute)? Then resolve.
             self._maybe_resolve()
+            self._maybe_escalate()
 
     # -- incident handling -------------------------------------------------
     def _on_anomaly(self, found: dict) -> None:
@@ -123,6 +128,24 @@ class Engine:
         if sr >= a["baseline_rate"] - 0.03:
             self._log("resolved", f"{a['method']}/{a['issuer']} recovered to {sr*100:.0f}%")
             self.anomaly = None  # keep root_cause/action for the panel until next incident
+
+    def _maybe_escalate(self) -> None:
+        """Stopping rule: an applied action that hasn't healed the segment within
+        MAX_ACTION_TICKS stops being retried and is force-escalated to a human/alert,
+        instead of the recovery action running indefinitely."""
+        if not (self.action and self.action.applied and self.action_applied_tick):
+            return
+        if self.action.kind in ("CIRCUIT_BREAK", "ALERT_ONLY"):
+            return  # already terminal, nothing to escalate further
+        ticks_active = self.ticks - self.action_applied_tick
+        if ticks_active < self.MAX_ACTION_TICKS:
+            return
+        self.sim.clear_incident()
+        self._log("escalated",
+                  f"{self.action.kind} on {self.anomaly['segment']} did not resolve within "
+                  f"{self.MAX_ACTION_TICKS} ticks \u2014 stopping automated action, alerting on-call")
+        self.action.kind = "ESCALATED"
+        self.action.applied = True
 
     def trigger_incident(self, kind: str = "gateway") -> dict:
         if kind == "bank":
